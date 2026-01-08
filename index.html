@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Quiz App</title>
 
   <style>
@@ -13,19 +13,24 @@
       padding: 16px;
       font-family: Arial, sans-serif;
       background: #f4f6f8;
+      min-height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 100vh;
     }
 
     .quiz-container {
-      background: #fff;
+      background: white;
       width: 100%;
       max-width: 420px;
       padding: 20px;
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .loading {
+      text-align: center;
+      font-size: 16px;
     }
 
     .counter {
@@ -42,14 +47,14 @@
     }
 
     .option {
-      margin-bottom: 12px;
       padding: 12px;
       border: 1px solid #ddd;
       border-radius: 6px;
-      cursor: pointer;
+      margin-bottom: 10px;
       display: flex;
       align-items: center;
       gap: 8px;
+      cursor: pointer;
     }
 
     .option:hover {
@@ -101,131 +106,128 @@
       text-align: center;
       margin-top: 12px;
     }
-
-    .loading {
-      text-align: center;
-      font-size: 16px;
-    }
   </style>
 </head>
 
 <body>
 
 <div class="quiz-container">
+
+  <!-- REQUIRED -->
   <div id="loading" class="loading">Loading quiz…</div>
 
+  <!-- REQUIRED -->
   <div id="quiz" style="display:none;">
-    <div class="counter" id="counter"></div>
+    <div id="counter" class="counter"></div>
     <h2 id="question"></h2>
-
     <div id="options"></div>
 
     <div class="buttons">
-      <button class="btn-prev" id="prevBtn" onclick="goPrevious()">⬅ Previous</button>
-      <button class="btn-submit" onclick="submitAnswer()">Submit</button>
+      <button id="prevBtn" class="btn-prev">⬅ Previous</button>
+      <button id="submitBtn" class="btn-submit">Submit</button>
     </div>
 
     <div id="message"></div>
   </div>
+
 </div>
 
 <script>
+document.addEventListener("DOMContentLoaded", () => {
+
+  const loadingEl = document.getElementById("loading");
+  const quizEl = document.getElementById("quiz");
+  const counterEl = document.getElementById("counter");
+  const questionEl = document.getElementById("question");
+  const optionsEl = document.getElementById("options");
+  const messageEl = document.getElementById("message");
+  const prevBtn = document.getElementById("prevBtn");
+  const submitBtn = document.getElementById("submitBtn");
+
   let quizData = [];
+  let shuffledQuiz = [];
   let currentIndex = 0;
   const selectedAnswers = {};
-  const shuffledOptionsMap = {}; // preserve shuffle per question
+  const shuffledOptions = {};
 
   fetch("quiz_data.json")
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error("quiz_data.json not found");
+      return res.json();
+    })
     .then(data => {
       quizData = data;
-      document.getElementById("loading").style.display = "none";
-      document.getElementById("quiz").style.display = "block";
+      shuffledQuiz = shuffle([...quizData]);
+      loadingEl.style.display = "none";
+      quizEl.style.display = "block";
       loadQuestion();
+    })
+    .catch(err => {
+      loadingEl.innerText = "❌ Failed to load quiz";
+      console.error(err);
     });
 
-  function shuffle(array) {
-    return [...array].sort(() => Math.random() - 0.5);
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
   }
 
   function loadQuestion() {
-    const q = quizData[currentIndex];
+    const q = shuffledQuiz[currentIndex];
 
-    document.getElementById("counter").innerText =
-      `Question ${currentIndex + 1} of ${quizData.length}`;
+    counterEl.innerText = `Question ${currentIndex + 1} of ${shuffledQuiz.length}`;
+    questionEl.innerText = q.question;
+    messageEl.innerHTML = "";
+    prevBtn.disabled = currentIndex === 0;
 
-    document.getElementById("question").innerText = q.question;
-
-    // Shuffle options once per question
-    if (!shuffledOptionsMap[currentIndex]) {
-      shuffledOptionsMap[currentIndex] = shuffle(q.options);
+    if (!shuffledOptions[currentIndex]) {
+      shuffledOptions[currentIndex] = shuffle([...q.options]);
     }
 
-    const options = shuffledOptionsMap[currentIndex];
-    const optionsDiv = document.getElementById("options");
-    optionsDiv.innerHTML = "";
-
-    options.forEach(option => {
-      const checked = selectedAnswers[currentIndex] === option ? "checked" : "";
-
+    optionsEl.innerHTML = "";
+    shuffledOptions[currentIndex].forEach(option => {
       const div = document.createElement("div");
       div.className = "option";
       div.innerHTML = `
-        <input type="radio" name="answer" value="${option}" ${checked}/>
+        <input type="radio" name="answer" value="${option}">
         <span>${option}</span>
       `;
-
-      // Make entire row clickable
-      div.onclick = () => {
-        div.querySelector("input").checked = true;
-      };
-
-      optionsDiv.appendChild(div);
+      div.onclick = () => div.querySelector("input").checked = true;
+      optionsEl.appendChild(div);
     });
-
-    document.getElementById("message").innerHTML = "";
-    document.getElementById("prevBtn").disabled = currentIndex === 0;
   }
 
-  function submitAnswer() {
+  submitBtn.onclick = () => {
     const selected = document.querySelector('input[name="answer"]:checked');
-
     if (!selected) {
-      showMessage("Please select an option", "error");
+      messageEl.innerHTML = `<div class="error">Please select an option</div>`;
       return;
     }
 
-    const answer = selected.value;
-    selectedAnswers[currentIndex] = answer;
-
-    if (answer === quizData[currentIndex].correct) {
-      showMessage("Correct ✅", "success");
-
+    if (selected.value === shuffledQuiz[currentIndex].correct) {
+      messageEl.innerHTML = `<div class="success">Correct ✅</div>`;
       setTimeout(() => {
         currentIndex++;
-        if (currentIndex < quizData.length) {
-          loadQuestion();
-        } else {
-          document.querySelector(".quiz-container").innerHTML =
-            "<h2>🎉 Quiz Completed!</h2>";
-        }
-      }, 500);
+        currentIndex < shuffledQuiz.length
+          ? loadQuestion()
+          : quizEl.innerHTML = "<h2>🎉 Quiz Completed!</h2>";
+      }, 400);
     } else {
-      showMessage("❌ Wrong answer. Try again.", "error");
+      messageEl.innerHTML = `<div class="error">❌ Wrong answer. Try again.</div>`;
     }
-  }
+  };
 
-  function goPrevious() {
+  prevBtn.onclick = () => {
     if (currentIndex > 0) {
       currentIndex--;
       loadQuestion();
     }
-  }
+  };
 
-  function showMessage(text, type) {
-    document.getElementById("message").innerHTML =
-      `<div class="${type}">${text}</div>`;
-  }
+});
 </script>
 
 </body>
