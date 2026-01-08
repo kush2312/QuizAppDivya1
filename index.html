@@ -43,13 +43,20 @@
 
     .option {
       margin-bottom: 12px;
-      padding: 10px;
+      padding: 12px;
       border: 1px solid #ddd;
       border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .option:hover {
+      background: #f1f5ff;
     }
 
     .option input {
-      margin-right: 8px;
       transform: scale(1.2);
     }
 
@@ -126,23 +133,20 @@
   let quizData = [];
   let currentIndex = 0;
   const selectedAnswers = {};
+  const shuffledOptionsMap = {}; // preserve shuffle per question
 
   fetch("quiz_data.json")
-    .then(res => {
-      if (!res.ok) throw new Error("quiz_data.json not found");
-      return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
       quizData = data;
       document.getElementById("loading").style.display = "none";
       document.getElementById("quiz").style.display = "block";
       loadQuestion();
-    })
-    .catch(err => {
-      document.getElementById("loading").innerHTML =
-        "❌ Failed to load quiz data";
-      console.error(err);
     });
+
+  function shuffle(array) {
+    return [...array].sort(() => Math.random() - 0.5);
+  }
 
   function loadQuestion() {
     const q = quizData[currentIndex];
@@ -152,21 +156,31 @@
 
     document.getElementById("question").innerText = q.question;
 
+    // Shuffle options once per question
+    if (!shuffledOptionsMap[currentIndex]) {
+      shuffledOptionsMap[currentIndex] = shuffle(q.options);
+    }
+
+    const options = shuffledOptionsMap[currentIndex];
     const optionsDiv = document.getElementById("options");
     optionsDiv.innerHTML = "";
 
-    q.options.forEach(option => {
-      const checked =
-        selectedAnswers[currentIndex] === option ? "checked" : "";
+    options.forEach(option => {
+      const checked = selectedAnswers[currentIndex] === option ? "checked" : "";
 
-      optionsDiv.innerHTML += `
-        <div class="option">
-          <label>
-            <input type="radio" name="answer" value="${option}" ${checked} />
-            ${option}
-          </label>
-        </div>
+      const div = document.createElement("div");
+      div.className = "option";
+      div.innerHTML = `
+        <input type="radio" name="answer" value="${option}" ${checked}/>
+        <span>${option}</span>
       `;
+
+      // Make entire row clickable
+      div.onclick = () => {
+        div.querySelector("input").checked = true;
+      };
+
+      optionsDiv.appendChild(div);
     });
 
     document.getElementById("message").innerHTML = "";
@@ -174,9 +188,7 @@
   }
 
   function submitAnswer() {
-    const selected = document.querySelector(
-      'input[name="answer"]:checked'
-    );
+    const selected = document.querySelector('input[name="answer"]:checked');
 
     if (!selected) {
       showMessage("Please select an option", "error");
